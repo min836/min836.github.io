@@ -185,30 +185,45 @@
     // 만약 서버 처리 중 오류 발생 시, "ERROR_MESSAGE", "StackTrace" 등의 필드가 추가될 수 있음
   }
 }
-각 도형 객체의 JSON 표현은 해당 Java 클래스(Circle.java, Ellipse.java 등)의 toJSON() 메소드에서 생성됩니다. ShapeGenerator.java는 개별 도형 JSON 객체들을 shapes 배열에 담고, 겹침 그룹 정보를 overlapGroups 배열로 만들어 최종 JSONObject를 구성합니다.
+각 도형 객체의 JSON 표현은 해당 Java 클래스(`Circle.java`, `Ellipse.java` 등)의 `toJSON()` 메소드에서 생성됩니다. `ShapeGenerator.java`는 개별 도형 JSON 객체들을 `shapes` 배열에 담고, 겹침 그룹 정보를 `overlapGroups` 배열로 만들어 최종 `JSONObject`를 구성합니다.
 
-4.3. 프론트엔드-백엔드 통신 방식
-요청 (Request):
-클라이언트(웹 브라우저의 script.js)는 HTML 페이지의 사용자 입력(최대 반경, 도형 개수 등)을 바탕으로 요청 파라미터를 구성합니다.
-JavaScript의 fetch API를 사용하여 백엔드 서버의 /api 엔드포인트로 비동기 HTTP GET 요청을 전송합니다.
-요청 파라미터들(예: Action=ShapesOverlaps, Width=800, Height=600 등)은 URLSearchParams 객체를 통해 URL의 쿼리 문자열(query string) 형태로 인코딩되어 URL에 포함됩니다.
-응답 (Response):
-서버(API.java)는 이 요청을 받아 처리한 후, 위 4.2절에서 설명한 구조의 JSON 데이터를 HTTP 응답 본문에 담아 클라이언트로 반환합니다. 응답의 Content-Type은 application/json;charset=UTF-8로 설정됩니다.
-응답 처리:
-클라이언트(script.js)는 fetch의 response.json() 메소드를 호출하여 응답 본문을 JavaScript 객체로 파싱합니다.
-파싱된 데이터를 사용하여 ShapeVisualizer 클래스의 해당 메소드들(prepareShapesForAnimation, drawFrame, updateStats)을 호출하여 화면을 업데이트합니다.
-4.4. 에러 처리 전략
-클라이언트 측 에러 처리 (script.js):
-generateShapes 메소드 내 fetch 호출 부분에서 response.ok 속성을 확인하여 HTTP 상태 코드가 성공 범위(200-299)를 벗어나는 경우 에러로 간주하고 Error 객체를 발생시킵니다.
-try...catch 블록을 사용하여 네트워크 통신 중 발생할 수 있는 예외 (예: 서버 연결 불가)나 JSON 파싱 과정에서의 예외를 모두 포착합니다.
-오류가 감지되면, displayError() 메소드가 호출되어 사용자에게 캔버스 영역에 "서버 통신 오류: [오류 메시지]" 또는 "도형 데이터 로드 실패: [서버 메시지]" 형태로 알림을 표시합니다. 동시에 브라우저 개발자 콘솔에는 더 자세한 오류 정보(console.error)를 출력하여 디버깅을 돕습니다.
-서버 측 에러 처리 (API.java 및 BACKEND_MANAGER.java):
-API.java:
-requestParams 메소드에서 BACKEND_MANAGER.EXEC_TASK 호출을 포함한 핵심 로직 부분을 try...catch (Exception e) 블록으로 감싸, 발생할 수 있는 모든 종류의 예외를 포괄적으로 처리합니다.
-예외 발생 시, 클라이언트로 반환될 JSON 응답(JSON_RES_STATUS 객체)에 STATUS를 500 (Internal Server Error)으로, STATUS_MSG를 "Internal Server Error"로 설정합니다.
-추가적으로, 발생한 예외의 메시지(e.getMessage())를 ERROR_MESSAGE 필드에, 전체 스택 트레이스(stack trace)를 StackTrace 필드(JSON 배열 형태)에 담아 응답에 포함시킵니다. (실제 운영 환경에서는 보안상의 이유로 클라이언트에 스택 트레이스 전체를 노출하지 않는 것이 좋습니다.)
-HTTP 응답 상태 코드도 response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR)를 통해 500으로 설정합니다.
-BACKEND_MANAGER.java:
-메소드 내에서 잘못된 요청 파라미터(예: 필수 파라미터 누락, 숫자 형식 오류, 유효하지 않은 값 범위)가 감지되면 IllegalArgumentException을 발생시킵니다.
-지원하지 않는 Action이 요청되면 UnsupportedOperationException을 발생시킵니다.
-이러한 예외들은 API.java의 catch 블록에서 일관되게 처리되어 클라이언트에게 적절한 오류 응답이 전달되도록 합니다.
+---
+
+## 4.3. 프론트엔드-백엔드 통신 방식
+
+### 요청 (Request):
+
+* 클라이언트(웹 브라우저의 `script.js`)는 HTML 페이지의 사용자 입력(최대 반경, 도형 개수 등)을 바탕으로 요청 파라미터를 구성합니다.
+* JavaScript의 `fetch` API를 사용하여 백엔드 서버의 `/api` 엔드포인트로 비동기 HTTP GET 요청을 전송합니다.
+* 요청 파라미터들(예: `Action=ShapesOverlaps`, `Width=800`, `Height=600` 등)은 `URLSearchParams` 객체를 통해 URL의 쿼리 문자열(query string) 형태로 인코딩되어 URL에 포함됩니다.
+
+### 응답 (Response):
+
+* 서버(`API.java`)는 이 요청을 받아 처리한 후, 위 4.2절에서 설명한 구조의 JSON 데이터를 HTTP 응답 본문에 담아 클라이언트로 반환합니다. 응답의 `Content-Type`은 `application/json;charset=UTF-8`로 설정됩니다.
+
+### 응답 처리:
+
+* 클라이언트(`script.js`)는 `fetch`의 `response.json()` 메소드를 호출하여 응답 본문을 JavaScript 객체로 파싱합니다.
+* 파싱된 데이터를 사용하여 `ShapeVisualizer` 클래스의 해당 메소드들(`prepareShapesForAnimation`, `drawFrame`, `updateStats`)을 호출하여 화면을 업데이트합니다.
+
+---
+
+## 4.4. 에러 처리 전략
+
+### 클라이언트 측 에러 처리 (`script.js`):
+
+* `generateShapes` 메소드 내 `fetch` 호출 부분에서 `response.ok` 속성을 확인하여 HTTP 상태 코드가 성공 범위(200-299)를 벗어나는 경우 에러로 간주하고 `Error` 객체를 발생시킵니다.
+* `try...catch` 블록을 사용하여 네트워크 통신 중 발생할 수 있는 예외 (예: 서버 연결 불가)나 JSON 파싱 과정에서의 예외를 모두 포착합니다.
+* 오류가 감지되면, `displayError()` 메소드가 호출되어 사용자에게 캔버스 영역에 "서버 통신 오류: [오류 메시지]" 또는 "도형 데이터 로드 실패: [서버 메시지]" 형태로 알림을 표시합니다. 동시에 브라우저 개발자 콘솔에는 더 자세한 오류 정보(`console.error`)를 출력하여 디버깅을 돕습니다.
+
+### 서버 측 에러 처리 (`API.java` 및 `BACKEND_MANAGER.java`):
+
+* **`API.java`**:
+    * `requestParams` 메소드에서 `BACKEND_MANAGER.EXEC_TASK` 호출을 포함한 핵심 로직 부분을 `try...catch (Exception e)` 블록으로 감싸, 발생할 수 있는 모든 종류의 예외를 포괄적으로 처리합니다.
+    * 예외 발생 시, 클라이언트로 반환될 JSON 응답(`JSON_RES_STATUS` 객체)에 **STATUS**를 `500` (Internal Server Error)으로, **STATUS_MSG**를 `"Internal Server Error"`로 설정합니다.
+    * 추가적으로, 발생한 예외의 메시지(`e.getMessage()`)를 **ERROR_MESSAGE** 필드에, 전체 스택 트레이스(stack trace)를 **StackTrace** 필드(JSON 배열 형태)에 담아 응답에 포함시킵니다. (실제 운영 환경에서는 보안상의 이유로 클라이언트에 스택 트레이스 전체를 노출하지 않는 것이 좋습니다.)
+    * HTTP 응답 상태 코드도 `response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR)`를 통해 `500`으로 설정합니다.
+* **`BACKEND_MANAGER.java`**:
+    * 메소드 내에서 잘못된 요청 파라미터(예: 필수 파라미터 누락, 숫자 형식 오류, 유효하지 않은 값 범위)가 감지되면 `IllegalArgumentException`을 발생시킵니다.
+    * 지원하지 않는 `Action`이 요청되면 `UnsupportedOperationException`을 발생시킵니다.
+    * 이러한 예외들은 `API.java`의 `catch` 블록에서 일관되게 처리되어 클라이언트에게 적절한 오류 응답이 전달되도록 합니다.
